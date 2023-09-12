@@ -46,7 +46,12 @@ class CropsRisk():
                 frequency = partes[3]
                 
                 file_config = os.path.join(folder_path, "crop_conf.csv")
+                file_coorinates = os.path.join(folder_path, "coordenadas.csv")
+
                 df = pd.read_csv(file_config, index_col=False)
+                df_coor = pd.read_csv(file_coorinates, index_col=False)
+                
+                elevation = df_coor[df_coor['name'] == 'elev']['value'].iloc[0]
 
                 self.configurations.append({
                     "id_estacion": ws,
@@ -55,6 +60,7 @@ class CropsRisk():
                     "frecuencia": frequency,
                     "df_configuracion": df,
                     "file_name": folder_name,
+                    "elevation": elevation,
                 })
 
     def load_scenario(self, ws):
@@ -72,7 +78,7 @@ class CropsRisk():
 
         self.load_scenario(dato["id_estacion"])
 
-        result = main(self.loaded_scenarios[dato["id_estacion"]], dato["df_configuracion"], dato["id_estacion"], dato["id_cultivar"], dato["id_soil"])
+        result = main(self.loaded_scenarios[dato["id_estacion"]], dato["df_configuracion"], dato["id_estacion"], dato["id_cultivar"], dato["id_soil"], dato["elevation"])
         result.to_csv(os.path.join(self.path_outputs_crop, f"{dato['file_name']}.csv"), na_rep=-1, index=False)
 
     def run(self):       

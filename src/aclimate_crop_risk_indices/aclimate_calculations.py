@@ -7,10 +7,11 @@ from tqdm import tqdm
 import warnings  # Import the warnings module
 
 
-def process_data(data, parameters, ws):
+def process_data(data, parameters, ws, elevation):
     rain_limit = parameters[parameters['name'] == 'rain']['min'].iloc[0]
     min_temp = parameters[parameters['name'] == 'temp']['min'].iloc[0]
     max_temp = parameters[parameters['name'] == 'temp']['max'].iloc[0]
+    wb_0 = parameters[parameters['name'] == 'wb']['min'].iloc[0]
 
     weekly_results_list = []
 
@@ -19,12 +20,25 @@ def process_data(data, parameters, ws):
     for file_name, df in data.items():
         weekly_data = pd.DataFrame()
 
+        c = (df['t_max'] + df['t_min']) / 2
+        d = (4098 * (0.6108 * (np.exp((17.27 * c) / (c + 237.3))))) / ((c + 237.3) * (c + 237.3))
+        e = (-0.000007 * elevation) + 0.0666
+        Sr = df['sol_rad']
+        a = 0.8
+        b = 2.45
+        ET_pt = a * (d / (d + e)) * (Sr / b)
+ 
+        df['eto'] = ET_pt
+        df['wb'] = df['prec'] - df['eto']
+
         df['date'] = df.apply(lambda row: pd.to_datetime(f"{int(row['year'])}-{int(row['month'])}-{int(row['day'])}"), axis=1)
 
         weekly_data['rainy_days'] = df['prec'].apply(lambda x: int(x > rain_limit))
         weekly_data['dry_days'] = df['prec'].apply(lambda x: int(x <= rain_limit))
         weekly_data['heat_days'] = df['t_max'].apply(lambda x: int(x > max_temp))
         weekly_data['cold_days'] = df['t_min'].apply(lambda x: int(x < min_temp))
+        weekly_data['drought_days'] = df['wb'].apply(lambda x: int(x < wb_0))
+        weekly_data['heat_drought_days'] = df.apply(lambda row: int((row['t_max'] > max_temp) & (row['wb'] < wb_0)), axis=1, result_type='expand')
         weekly_data['year'] = df['year'].apply(lambda x: int(x))
         weekly_data['week'] = df['date'].apply(lambda x: x.week)
         weekly_data['weather_station'] = file_name
@@ -87,10 +101,10 @@ def add_dates_week(statistical_results):
 def rearrange_columns(statistical_results, column_order):
     return statistical_results[column_order]
 
-def main(data, parameters, ws, crop, soil):
-    weekly_results = process_data(data, parameters, ws)
+def main(data, parameters, ws, crop, soil, elevation):
+    weekly_results = process_data(data, parameters, ws, elevation)
 
-    variables = ['rainy_days', 'dry_days', 'cold_days', 'heat_days']
+    variables = ['rainy_days', 'dry_days', 'cold_days', 'heat_days', 'drought_days', 'heat_drought_days']
 
     metrics = {
         'avg': np.mean,
@@ -115,7 +129,7 @@ def main(data, parameters, ws, crop, soil):
     statistical_results = add_dates_week(statistical_results)
 
     #Acrónimos
-    statistical_results['measure'] = statistical_results['measure'].replace({'rainy_days': 'ag_ndll', 'dry_days': 'ag_nds', 'heat_days': 'ag_ndc', 'cold_days': 'ag_ndf'})
+    statistical_results['measure'] = statistical_results['measure'].replace({'rainy_days': 'ag_ndll', 'dry_days': 'ag_nds', 'heat_days': 'ag_ndc', 'cold_days': 'ag_ndf', 'drought_days': 'ag_ndd', 'heat_drought_days': 'ag_dcdh'})
     column_order = ['weather_station', 'soil', 'cultivar', 'start', 'end', 'measure', 'median', 'avg', 'min', 'max', 'quar_1', 'quar_2', 'quar_3', 'conf_lower', 'conf_upper', 'sd', 'perc_5', 'perc_95', 'coef_var']
     statistical_results = rearrange_columns(statistical_results, column_order)
 

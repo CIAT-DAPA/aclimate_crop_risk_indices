@@ -43,9 +43,14 @@ class CropsRisk():
             if os.path.isdir(folder_path):
 
                 config_file_path = os.path.join(folder_path, "crop_conf.csv")
+                coordinates_file_path = os.path.join(folder_path, "coordenadas.csv")
 
                 if not os.path.exists(config_file_path):
                     print(f"\nNo configuration found in the folder {folder_name}")
+                    continue
+
+                if not os.path.exists(coordinates_file_path):
+                    print(f"\nNo coordinates found in the folder {folder_name}")
                     continue
                 
                 partes = folder_name.split("_")
@@ -54,6 +59,10 @@ class CropsRisk():
 
                 try:
                     df = pd.read_csv(config_file_path, index_col=False)
+                    df_coor = pd.read_csv(coordinates_file_path, index_col=False)
+
+                    elevation = df_coor[df_coor['name'] == 'elev']['value'].iloc[0]
+
                     self.configurations.append({
                         "id_estacion": ws,
                         "id_cultivar": cultivar,
@@ -61,6 +70,7 @@ class CropsRisk():
                         "frecuencia": frequency,
                         "df_configuracion": df,
                         "file_name": folder_name,
+                        "elevation": elevation,
                     })
                 except Exception as e:
                     print(f"\nError reading configuration in folder {folder_name}: {e}")
@@ -84,7 +94,7 @@ class CropsRisk():
         try:
             self.load_scenario(dato["id_estacion"])
 
-            result = main(self.loaded_scenarios[dato["id_estacion"]], dato["df_configuracion"], dato["id_estacion"], dato["id_cultivar"], dato["id_soil"])
+            result = main(self.loaded_scenarios[dato["id_estacion"]], dato["df_configuracion"], dato["id_estacion"], dato["id_cultivar"], dato["id_soil"], dato["elevation"])
             result.to_csv(os.path.join(self.path_outputs_crop, f"{dato['file_name']}.csv"), na_rep=-1, index=False)
 
         except Exception as e:

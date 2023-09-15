@@ -23,45 +23,57 @@ class CropsRisk():
 
     def verify_path_exists(self, path):
         if not os.path.exists(path):
-            raise ValueError(f"The path '{path}' does not exist.")
+            raise FileNotFoundError(f"The path '{path}' does not exist.")
         return path
 
     def create_path_if_not_exists(self, path):
         if not os.path.exists(path):
             os.makedirs(path)
+            print(f'created folder { path }')
         return path
     
     def read_configurations(self):
 
-        for folder_name in tqdm(os.listdir(self.path_inputs_crop), desc=f"Processing data config:"):
+        if len(os.listdir(self.path_inputs_crop)) <= 0:
+            raise FileNotFoundError(f"\nNo configurations found for crop")
+
+        for folder_name in tqdm(os.listdir(self.path_inputs_crop), desc=f"Processing data config"):
             folder_path = os.path.join(self.path_inputs_crop, folder_name)
             
             if os.path.isdir(folder_path):
+
+                config_file_path = os.path.join(folder_path, "crop_conf.csv")
+
+                if not os.path.exists(config_file_path):
+                    print(f"\nNo configuration found in the folder {folder_name}")
+                    continue
                 
                 partes = folder_name.split("_")
                 
-                ws = partes[0]
-                cultivar = partes[1]
-                soil = partes[2]
-                frequency = partes[3]
-                
-                file_config = os.path.join(folder_path, "crop_conf.csv")
-                df = pd.read_csv(file_config, index_col=False)
+                ws, cultivar, soil, frequency = partes[:4]
 
-                self.configurations.append({
-                    "id_estacion": ws,
-                    "id_cultivar": cultivar,
-                    "id_soil": soil,
-                    "frecuencia": frequency,
-                    "df_configuracion": df,
-                    "file_name": folder_name,
-                })
+                try:
+                    df = pd.read_csv(config_file_path, index_col=False)
+                    self.configurations.append({
+                        "id_estacion": ws,
+                        "id_cultivar": cultivar,
+                        "id_soil": soil,
+                        "frecuencia": frequency,
+                        "df_configuracion": df,
+                        "file_name": folder_name,
+                    })
+                except Exception as e:
+                    print(f"\nError reading configuration in folder {folder_name}: {e}")
 
-    def load_scenario(self, ws):
+    def load_scenario(self, ws): 
         
         if ws not in self.loaded_scenarios:
-            path_station =  os.path.join(self.path_outputs_stations, ws)
+            path_station = self.verify_path_exists(os.path.join(self.path_outputs_stations, ws))
             archivos_csv = glob.glob(os.path.join(path_station, '*.csv'))
+            
+            if len(archivos_csv) <= 0:
+                raise FileNotFoundError(f"\nNo scenarios found for station {ws}")
+            
             scenarios = {}
             for archivo in archivos_csv:
                 nombre_archivo = os.path.basename(archivo)
@@ -69,14 +81,20 @@ class CropsRisk():
             self.loaded_scenarios[ws] = scenarios
 
     def procesar(self, dato):
+        try:
+            self.load_scenario(dato["id_estacion"])
 
-        self.load_scenario(dato["id_estacion"])
+            result = main(self.loaded_scenarios[dato["id_estacion"]], dato["df_configuracion"], dato["id_estacion"], dato["id_cultivar"], dato["id_soil"])
+            result.to_csv(os.path.join(self.path_outputs_crop, f"{dato['file_name']}.csv"), na_rep=-1, index=False)
 
-        result = main(self.loaded_scenarios[dato["id_estacion"]], dato["df_configuracion"], dato["id_estacion"], dato["id_cultivar"], dato["id_soil"])
-        result.to_csv(os.path.join(self.path_outputs_crop, f"{dato['file_name']}.csv"), na_rep=-1, index=False)
+        except Exception as e:
+            print("Error:", e)
 
-    def run(self):       
-        self.read_configurations()
+    def run(self):
+        try:      
+            self.read_configurations()
+        except Exception as e:
+            print("Error reading configurations: ", e)
 
         with multiprocessing.Pool(self.cores) as pool:
             pool.map(self.procesar, self.configurations)

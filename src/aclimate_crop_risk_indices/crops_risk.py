@@ -95,7 +95,7 @@ class CropsRisk():
             self.load_scenario(dato["id_estacion"])
 
             result = main(self.loaded_scenarios[dato["id_estacion"]], dato["df_configuracion"], dato["id_estacion"], dato["id_cultivar"], dato["id_soil"], dato["elevation"])
-            result.to_csv(os.path.join(self.path_outputs_crop, f"{dato['file_name']}.csv"), na_rep=-1, index=False)
+            result.to_csv(os.path.join(self.path_outputs_crop, f"{dato['file_name']}.csv"), na_rep=0, index=False)
 
         except Exception as e:
             print("Error:", e)

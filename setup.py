@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="aclimate_crop_risk_indices",
-    version='v0.0.3',
+    version='v0.0.4',
     description="Resampling module",
     url="https://github.com/CIAT-DAPA/aclimate_crop_risk_indices",
     download_url="https://github.com/CIAT-DAPA/aclimate_crop_risk_indices",
